@@ -1,6 +1,14 @@
+import itertools
+
 import pytest
 from django.core.cache import cache
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken
+
+from apps.accounts.models import User
+
+DEFAULT_PASSWORD = "Str0ng-pass-phrase!"
+_email_counter = itertools.count(1)
 
 
 @pytest.fixture(autouse=True)
@@ -14,3 +22,55 @@ def _clear_cache():
 @pytest.fixture
 def api_client() -> APIClient:
     return APIClient()
+
+
+@pytest.fixture
+def make_user(db):
+    def _make(email: str | None = None, password: str = DEFAULT_PASSWORD, **extra) -> User:
+        email = email or f"user{next(_email_counter)}@example.com"
+        extra.setdefault("full_name", "Test Patient")
+        return User.objects.create_user(email=email, password=password, **extra)
+
+    return _make
+
+
+@pytest.fixture
+def user(make_user) -> User:
+    return make_user(email="patient@example.com")
+
+
+@pytest.fixture
+def other_user(make_user) -> User:
+    return make_user(email="other@example.com")
+
+
+@pytest.fixture
+def admin_user(make_user) -> User:
+    return make_user(email="admin@example.com", is_staff=True)
+
+
+@pytest.fixture
+def client_for():
+    """Build an APIClient authenticated with a real JWT for the given user."""
+
+    def _client(user: User) -> APIClient:
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(user)}")
+        return client
+
+    return _client
+
+
+@pytest.fixture
+def user_client(client_for, user) -> APIClient:
+    return client_for(user)
+
+
+@pytest.fixture
+def other_client(client_for, other_user) -> APIClient:
+    return client_for(other_user)
+
+
+@pytest.fixture
+def admin_client(client_for, admin_user) -> APIClient:
+    return client_for(admin_user)
