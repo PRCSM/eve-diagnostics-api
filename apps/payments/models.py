@@ -34,8 +34,9 @@ class Payment(BaseModel):
         max_length=16, choices=PaymentStatus.choices, default=PaymentStatus.PENDING
     )
     provider = models.CharField(max_length=32)
-    provider_reference = models.CharField(max_length=64, null=True, blank=True)
-    idempotency_key = models.CharField(max_length=255, null=True, blank=True)
+    # NULL (not "") when absent: NULLs never collide in the unique constraints below.
+    provider_reference = models.CharField(max_length=64, null=True, blank=True)  # noqa: DJ001
+    idempotency_key = models.CharField(max_length=255, null=True, blank=True)  # noqa: DJ001
     request_hash = models.CharField(max_length=64)
     failure_reason = models.CharField(max_length=255, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
