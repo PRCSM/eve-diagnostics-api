@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: eve
+          POSTGRES_USER: eve
+          POSTGRES_PASSWORD: eve-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eve -d eve"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: eve
+      POSTGRES_USER: eve
+      POSTGRES_PASSWORD: eve-ci-password
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Migrations are up to date
+        run: python manage.py makemigrations --check --dry-run
+        env:
+          DJANGO_SETTINGS_MODULE: config.test_settings
+
+      - name: Production settings pass Django's deploy checks
+        run: python manage.py check --deploy --fail-level WARNING
+        env:
+          DJANGO_DEBUG: "false"
+          DJANGO_SECRET_KEY: ci-only-${{ github.run_id }}-a-long-random-looking-secret-key-value
+          JWT_SIGNING_KEY: ci-only-jwt-signing-key-${{ github.run_id }}
+          PAYMENT_WEBHOOK_SECRET: ci-only-webhook-secret
+          DJANGO_ALLOWED_HOSTS: api.example.com
+          DJANGO_SECURE_SSL_REDIRECT: "true"
+          DJANGO_SECURE_HSTS_SECONDS: "31536000"
+          DJANGO_SECURE_COOKIES: "true"
+
+      - name: Tests
+        run: pytest --cov --cov-report=term --cov-fail-under=85
+
+      - name: Dependency vulnerability audit
+        run: pip-audit -r requirements.txt

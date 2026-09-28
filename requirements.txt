@@ -1,0 +1,8 @@
+# Runtime dependencies. Direct dependencies are pinned to exact versions.
+Django==5.2.17
+djangorestframework==3.18.1
+djangorestframework-simplejwt==5.5.1
+drf-spectacular==0.30.0
+psycopg[binary]==3.3.6
+gunicorn==26.2.0
+whitenoise==6.12.0
