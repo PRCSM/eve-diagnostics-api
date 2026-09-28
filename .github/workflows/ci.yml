@@ -64,8 +64,29 @@ jobs:
           DJANGO_SECURE_HSTS_SECONDS: "31536000"
           DJANGO_SECURE_COOKIES: "true"
 
+      - name: OpenAPI schema is valid
+        run: python manage.py spectacular --validate --fail-on-warn --file /tmp/schema.yml
+        env:
+          DJANGO_SETTINGS_MODULE: config.test_settings
+
       - name: Tests
         run: pytest --cov --cov-report=term --cov-fail-under=85
 
       - name: Dependency vulnerability audit
         run: pip-audit -r requirements.txt
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build runtime image
+        run: docker build --target runtime -t eve-diagnostics-api:ci .
+      - name: Start stack and wait for health
+        run: docker compose up -d --wait api
+      - name: Smoke test
+        run: |
+          curl --fail --silent http://127.0.0.1:8000/health/ready/
+          curl --fail --silent http://127.0.0.1:8000/api/v1/centres/
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs api

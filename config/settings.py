@@ -203,6 +203,12 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": r"/api/v1",
+    # Explicit names for status enums that would otherwise collide in the schema.
+    # SimulatedOutcome has the same values as PaymentStatus, so it shares PaymentStatusEnum.
+    "ENUM_NAME_OVERRIDES": {
+        "BookingStatusEnum": "apps.bookings.models.BookingStatus",
+        "PaymentStatusEnum": "apps.payments.models.PaymentStatus",
+    },
 }
 
 # --- Domain settings ------------------------------------------------------------------------
