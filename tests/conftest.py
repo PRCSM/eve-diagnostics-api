@@ -1,12 +1,15 @@
 import itertools
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.accounts.models import User
+from apps.bookings.models import Booking, BookingStatus
 from apps.catalog.models import CentreTest, DiagnosticCentre, DiagnosticTest
 
 DEFAULT_PASSWORD = "Str0ng-pass-phrase!"
@@ -96,3 +99,39 @@ def diagnostic_test(db) -> DiagnosticTest:
 @pytest.fixture
 def offering(centre, diagnostic_test) -> CentreTest:
     return CentreTest.objects.create(centre=centre, test=diagnostic_test, price=Decimal("499.00"))
+
+
+# --- Bookings ---------------------------------------------------------------------------------
+
+
+def future(days: int = 3, hour: int = 9) -> datetime:
+    """A timezone-aware time `days` from now, on the hour."""
+    return (timezone.now() + timedelta(days=days)).replace(
+        hour=hour, minute=0, second=0, microsecond=0
+    )
+
+
+@pytest.fixture
+def make_booking(offering):
+    def _make(
+        user: User,
+        *,
+        status: str = BookingStatus.PENDING,
+        appointment_at: datetime | None = None,
+        offering_: CentreTest | None = None,
+    ) -> Booking:
+        chosen = offering_ or offering
+        return Booking.objects.create(
+            user=user,
+            offering=chosen,
+            appointment_at=appointment_at or future(),
+            amount=chosen.price,
+            status=status,
+        )
+
+    return _make
+
+
+@pytest.fixture
+def booking(make_booking, user) -> Booking:
+    return make_booking(user)
