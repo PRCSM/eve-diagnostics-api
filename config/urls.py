@@ -7,6 +7,7 @@ from apps.common.views import liveness, readiness
 
 api_v1_patterns = [
     path("auth/", include("apps.accounts.urls")),
+    path("", include("apps.catalog.urls")),
 ]
 
 urlpatterns = [

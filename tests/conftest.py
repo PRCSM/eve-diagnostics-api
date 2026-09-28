@@ -1,4 +1,5 @@
 import itertools
+from decimal import Decimal
 
 import pytest
 from django.core.cache import cache
@@ -6,6 +7,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.accounts.models import User
+from apps.catalog.models import CentreTest, DiagnosticCentre, DiagnosticTest
 
 DEFAULT_PASSWORD = "Str0ng-pass-phrase!"
 _email_counter = itertools.count(1)
@@ -74,3 +76,23 @@ def other_client(client_for, other_user) -> APIClient:
 @pytest.fixture
 def admin_client(client_for, admin_user) -> APIClient:
     return client_for(admin_user)
+
+
+# --- Catalog ----------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def centre(db) -> DiagnosticCentre:
+    return DiagnosticCentre.objects.create(
+        name="Sample Diagnostics Baner", address="12 Baner Road", city="Pune", pincode="411045"
+    )
+
+
+@pytest.fixture
+def diagnostic_test(db) -> DiagnosticTest:
+    return DiagnosticTest.objects.create(code="CBC", name="Complete Blood Count")
+
+
+@pytest.fixture
+def offering(centre, diagnostic_test) -> CentreTest:
+    return CentreTest.objects.create(centre=centre, test=diagnostic_test, price=Decimal("499.00"))
