@@ -78,3 +78,52 @@ class Payment(BaseModel):
 
     def __str__(self) -> str:
         return f"Payment {self.id} ({self.status})"
+
+
+class WebhookEventStatus(models.TextChoices):
+    RECEIVED = "RECEIVED"  # stored, not yet processed
+    PROCESSED = "PROCESSED"  # applied (or already applied) to the payment
+    IGNORED = "IGNORED"  # acknowledged but not applied: unknown type or conflicting result
+    FAILED = "FAILED"  # processing failed; eligible for retry
+
+
+class WebhookEvent(BaseModel):
+    """Inbox of provider notifications. One row per (provider, event_id), however many
+    times the provider delivers it. `created_at` is when it was first received."""
+
+    provider = models.CharField(max_length=32)
+    event_id = models.CharField(max_length=128)
+    event_type = models.CharField(max_length=64)
+    payload = models.JSONField()
+    payload_hash = models.CharField(max_length=64)
+    status = models.CharField(
+        max_length=16, choices=WebhookEventStatus.choices, default=WebhookEventStatus.RECEIVED
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="webhook_events",
+    )
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "event_id"], name="webhook_events_provider_event_unique"
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=WebhookEventStatus.values),
+                name="webhook_events_status_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "created_at"], name="webhook_events_status_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider}:{self.event_id} ({self.status})"

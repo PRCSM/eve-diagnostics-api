@@ -8,6 +8,7 @@ import math
 from typing import Any
 
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.core.exceptions import RequestDataTooBig, SuspiciousOperation
 from django.http import Http404
 from rest_framework import exceptions as drf_exceptions
 from rest_framework.response import Response
@@ -70,6 +71,12 @@ def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response:
     if isinstance(exc, DomainError):
         set_rollback()
         return Response(error_body(exc.code, exc.message, exc.details), status=exc.status_code)
+
+    if isinstance(exc, RequestDataTooBig):
+        return Response(error_body("PAYLOAD_TOO_LARGE", "Request body is too large."), status=413)
+    if isinstance(exc, SuspiciousOperation):
+        logger.warning("suspicious_request", extra={"reason": type(exc).__name__})
+        return Response(error_body("BAD_REQUEST", "The request was rejected."), status=400)
 
     if isinstance(exc, Http404):
         exc = drf_exceptions.NotFound()

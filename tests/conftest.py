@@ -1,9 +1,12 @@
 import itertools
+import json
+import time
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -13,6 +16,9 @@ from apps.accounts.models import User
 from apps.bookings.models import Booking, BookingStatus
 from apps.catalog.models import CentreTest, DiagnosticCentre, DiagnosticTest
 from apps.payments.models import Payment, PaymentStatus
+from apps.payments.webhooks import compute_signature
+
+WEBHOOK_URL = "/api/v1/payments/webhook/"
 
 DEFAULT_PASSWORD = "Str0ng-pass-phrase!"
 _email_counter = itertools.count(1)
@@ -162,3 +168,54 @@ def make_payment(db):
         )
 
     return _make
+
+
+# --- Webhooks ---------------------------------------------------------------------------------
+
+
+def webhook_event(
+    payment: Payment,
+    *,
+    event_id: str = "evt_0001",
+    event_type: str = "payment.succeeded",
+    **data_overrides,
+) -> dict:
+    data = {
+        "payment_reference": payment.provider_reference,
+        "booking_id": str(payment.booking_id),
+        "amount": str(payment.amount),
+        "currency": payment.currency,
+        "failure_reason": None,
+    }
+    data.update(data_overrides)
+    return {
+        "event_id": event_id,
+        "event_type": event_type,
+        "occurred_at": timezone.now().isoformat(),
+        "data": data,
+    }
+
+
+def signed_headers(body: bytes, *, secret: str | None = None, timestamp: int | None = None):
+    ts = str(int(time.time()) if timestamp is None else timestamp)
+    signature = compute_signature(
+        secret=secret or settings.PAYMENT_WEBHOOK_SECRET, timestamp=ts, body=body
+    )
+    return {"HTTP_X_WEBHOOK_TIMESTAMP": ts, "HTTP_X_WEBHOOK_SIGNATURE": signature}
+
+
+@pytest.fixture
+def send_webhook(api_client):
+    """POST a correctly signed webhook (override pieces to test the failure paths)."""
+
+    def _send(payload: dict | None = None, *, body: bytes | None = None, headers=None, **sign):
+        raw = body if body is not None else json.dumps(payload).encode()
+        return api_client.generic(
+            "POST",
+            WEBHOOK_URL,
+            raw,
+            content_type="application/json",
+            **(headers if headers is not None else signed_headers(raw, **sign)),
+        )
+
+    return _send
