@@ -8,6 +8,7 @@ from rest_framework import serializers
 from apps.bookings.models import Booking, BookingStatus
 from apps.catalog.models import DiagnosticCentre
 from apps.catalog.serializers import DiagnosticTestSummarySerializer
+from apps.payments.models import Payment
 
 
 class AwareDateTimeField(serializers.DateTimeField):
@@ -39,10 +40,18 @@ class BookingCentreSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class BookingPaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ["id", "status", "amount", "provider_reference", "created_at", "completed_at"]
+        read_only_fields = fields
+
+
 class BookingSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(read_only=True)
     centre = BookingCentreSerializer(source="offering.centre", read_only=True)
     test = DiagnosticTestSummarySerializer(source="offering.test", read_only=True)
+    payments = BookingPaymentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Booking
@@ -55,6 +64,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "currency",
             "centre",
             "test",
+            "payments",
             "created_at",
             "updated_at",
         ]

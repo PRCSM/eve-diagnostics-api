@@ -15,11 +15,13 @@ from apps.bookings.exceptions import (
     BookingNotFound,
     BookingNotPayable,
     DuplicateBooking,
+    PaymentInProgress,
 )
 from apps.bookings.models import Booking, BookingStatus
 from apps.catalog import services as catalog_services
 from apps.catalog.models import CURRENCY
 from apps.common.db import violated_constraint
+from apps.payments.models import PaymentStatus
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,9 @@ logger = logging.getLogger(__name__)
 
 def visible_bookings(user: User) -> QuerySet[Booking]:
     """Patients see their own bookings; staff see everyone's (read-only)."""
-    queryset = Booking.objects.select_related("offering__centre", "offering__test")
+    queryset = Booking.objects.select_related(
+        "offering__centre", "offering__test"
+    ).prefetch_related("payments")
     return queryset if user.is_staff else queryset.filter(user=user)
 
 
@@ -87,6 +91,9 @@ def cancel_booking(*, user: User, booking_id: uuid.UUID) -> Booking:
                 f"A {booking.status} booking cannot be cancelled.",
                 details={"status": booking.status},
             )
+        # A charge in flight could still succeed; cancelling now would strand the money.
+        if booking.payments.filter(status=PaymentStatus.PENDING).exists():
+            raise PaymentInProgress()
         transition(booking, BookingStatus.CANCELLED, reason="cancelled_by_patient")
     return booking
 

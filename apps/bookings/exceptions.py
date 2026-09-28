@@ -24,3 +24,8 @@ class BookingNotPayable(ConflictError):
 class InvalidBookingTransition(ConflictError):
     code = "BOOKING_INVALID_TRANSITION"
     default_message = "This booking status change is not allowed."
+
+
+class PaymentInProgress(ConflictError):
+    code = "PAYMENT_IN_PROGRESS"
+    default_message = "A payment for this booking is still being processed."

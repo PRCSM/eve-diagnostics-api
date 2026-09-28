@@ -1,4 +1,5 @@
 import itertools
+import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -11,6 +12,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from apps.accounts.models import User
 from apps.bookings.models import Booking, BookingStatus
 from apps.catalog.models import CentreTest, DiagnosticCentre, DiagnosticTest
+from apps.payments.models import Payment, PaymentStatus
 
 DEFAULT_PASSWORD = "Str0ng-pass-phrase!"
 _email_counter = itertools.count(1)
@@ -135,3 +137,28 @@ def make_booking(offering):
 @pytest.fixture
 def booking(make_booking, user) -> Booking:
     return make_booking(user)
+
+
+# --- Payments ---------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def make_payment(db):
+    def _make(
+        booking: Booking,
+        *,
+        status: str = PaymentStatus.PENDING,
+        reference: str | None = None,
+    ) -> Payment:
+        return Payment.objects.create(
+            booking=booking,
+            amount=booking.amount,
+            currency=booking.currency,
+            provider="simulated",
+            provider_reference=reference or f"sim_pay_{uuid.uuid4().hex[:24]}",
+            request_hash="0" * 64,
+            status=status,
+            completed_at=None if status == PaymentStatus.PENDING else timezone.now(),
+        )
+
+    return _make
